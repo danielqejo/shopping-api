@@ -1,61 +1,57 @@
 package io.qejo.shoppingapi.domain.cart
 
-import io.qejo.shoppingapi.domain.BuyingList
+import io.qejo.shoppingapi.domain.Order
 import io.qejo.shoppingapi.domain.product.Product
-import java.lang.Exception
+import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.Transient
+import org.springframework.data.relational.core.mapping.Column
+import org.springframework.data.relational.core.mapping.MappedCollection
+import org.springframework.data.relational.core.mapping.Table
 import java.math.BigDecimal
 import java.util.*
-import javax.persistence.*
 
-@Entity(name = "carts")
-@Table(name = "carts")
-class Cart(id:UUID, items: MutableSet<CartItem>) {
+@Table("carts")
+class Cart(@Id val id:UUID,
+           @Column("name") val name: String,
+           @MappedCollection(idColumn = "cart_id") val items: Set<CartItem>) {
 
-    constructor(): this(UUID.randomUUID(), mutableSetOf())
+    constructor() : this (UUID.randomUUID(), "xis", emptySet())
 
-    @Id
-    val id:String = id.toString()
+    constructor(id:UUID, items: Set<CartItem>) : this(id, "qejo", items)
 
-    @OneToMany(mappedBy = "cartItemId.cartId", cascade = [CascadeType.ALL], orphanRemoval = true)
-    var items: MutableSet<CartItem> = items
-        private set
-
-    fun add(product: Product, amount: Int = 1) {
-        val cartItem = items[product]
-        if (cartItem == null) {
-            items += CartItem(this.id, product, amount)
-            return
+    fun add(product: Product, amount: Int = 1): Cart {
+        return when(val cartItem = items[product.sku]) {
+            null -> Cart(id, items + CartItem(this.id, product, amount))
+            else -> Cart(id, items + cartItem.addAmount(amount))
         }
-        cartItem + amount
     }
 
-    fun reduce(product: Product, amount: Int = Int.MAX_VALUE) {
-        val cartItem = items[product] ?: return
+    fun reduce(product: Product, amount: Int = Int.MAX_VALUE): Cart {
+        val cartItem = items[product.sku] ?: return this
 
-        runCatching { cartItem - amount }
-            .onFailure {
-                when(it) {
-                    is AmountRemovedExceedsPermitted -> items -= cartItem
-                    else -> throw Exception("Something went wrong trying to remove items from cart", it)
-                }
-            }
+        return try {
+            val newCartItem = cartItem.reduceAmount(amount)
+            Cart(id, items + newCartItem)
+        }catch (ex: AmountRemovedExceedsPermitted){
+            Cart(id, items - cartItem)
+        }
     }
 
-    fun close(): BuyingList {
-        val map = items.associate { it.cartItemId.product.name to it.amount }
-        items.clear()
-        return BuyingList(map)
+    fun createOrder(): Order {
+        val map = items.associate { it.productSku to it.amount }
+        return Order(map)
     }
 
     fun totalValue(): BigDecimal  {
         return items.sumOf { it.totalValue() }
     }
 
-    private operator fun Set<CartItem>.get(product: Product): CartItem? = this.firstOrNull { it.cartItemId.product == product }
+    private operator fun Set<CartItem>.get(productSku: UUID): CartItem? = this.firstOrNull { it.productSku == productSku }
 
     override fun toString(): String {
         return "Cart(id=$id, items=$items, totalValue=${totalValue()})"
     }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false

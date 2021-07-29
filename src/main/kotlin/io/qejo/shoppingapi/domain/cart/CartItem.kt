@@ -1,52 +1,42 @@
 package io.qejo.shoppingapi.domain.cart
 
 import io.qejo.shoppingapi.domain.product.Product
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.data.annotation.Id
+import org.springframework.data.annotation.PersistenceConstructor
+import org.springframework.data.annotation.Transient
+import org.springframework.data.relational.core.mapping.Column
+import org.springframework.data.relational.core.mapping.Table
 import java.math.BigDecimal
-import javax.persistence.*
+import java.util.*
 
-@Entity(name = "cart_items")
-@Table(name = "cart_items")
-class CartItem(cartId: String, product: Product, amount: Int) {
+@Table("cart_items")
+data class CartItem(@Id val id: Long,
+                    @Column("cart_id") val cartId: UUID,
+                    @Column("product_sku") val productSku: UUID,
+                    @Transient @Value("value") val value: BigDecimal,
+                    @Column("amount") val amount: Int) {
 
-    @EmbeddedId
-    val cartItemId: CartItemId = CartItemId(cartId, product)
+    constructor(cartId: UUID, product: Product, amount: Int) : this(0, cartId, product.sku, product.value, amount)
 
-    @Column(name = "amount", nullable = false)
-    var amount: Int = amount
-        private set
+    @PersistenceConstructor
+    constructor(id: Long, cartId: UUID, product: Product, amount: Int) :
+            this (id, cartId, product.sku, product.value, amount)
 
-    operator fun plus(amount: Int) {
-        this.amount += amount
+    init {
+        if(amount <= 0) throw AmountRemovedExceedsPermitted()
     }
 
-    operator fun minus(amount: Int) {
-        if(amount >= this.amount) {
-            throw AmountRemovedExceedsPermitted()
-        }
-        this.amount -= amount
+    fun addAmount(amount: Int): CartItem {
+        return CartItem(id, cartId, productSku,value, this.amount + amount)
+    }
+
+    fun reduceAmount(amount: Int): CartItem {
+        return CartItem(id, cartId, productSku,value, this.amount - amount)
     }
 
     fun totalValue(): BigDecimal {
-        return cartItemId.product.averageValue.multiply(BigDecimal(amount))
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
-
-        other as CartItem
-
-        if (cartItemId != other.cartItemId) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        return cartItemId.hashCode()
-    }
-
-    override fun toString(): String {
-        return "CartItem(cartItemId=$cartItemId, amount=$amount)"
+        return value.multiply(BigDecimal(amount))
     }
 
 }

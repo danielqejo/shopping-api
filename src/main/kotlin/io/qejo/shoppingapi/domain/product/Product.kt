@@ -1,38 +1,35 @@
 package io.qejo.shoppingapi.domain.product
 
+import org.springframework.data.annotation.Id
+import org.springframework.data.relational.core.mapping.Column
+import org.springframework.data.relational.core.mapping.Table
 import java.math.BigDecimal
+import java.math.BigDecimal.ZERO
 import java.util.*
-import javax.persistence.Column
-import javax.persistence.Entity
-import javax.persistence.Id
-import javax.persistence.Table
 
-@Entity(name = "products")
-@Table(name = "products")
-class Product(sku: String,
-              name:String,
-              mediumValue:BigDecimal) {
+@Table("products")
+class Product (sku: UUID,
+               name:String,
+               value:BigDecimal) {
 
-    constructor(name:String, mediumValue: BigDecimal): this(UUID.randomUUID().toString(), name, mediumValue)
+    constructor(name:String, value: BigDecimal): this(UUID.randomUUID(), name, value)
 
-    @Id
-    @Column(name="sku")
-    val sku: String = sku
-
-    @Column(name="name", nullable = false, updatable = true)
-    var name:String = name
-        private set
-
-    @Column(name="average_value", nullable = false, updatable = true)
-    var averageValue:BigDecimal = mediumValue
-        private set
-
-    fun changeMediumValue(newMediumValue:BigDecimal){
-        this.averageValue = newMediumValue
+    init {
+        if (name.isBlank()) throw ProductNameIsBlankException()
+        if (value.lessThanOrEqualsTo(ZERO)) throw ProductAverageValueIsZeroOrLessException()
     }
 
-    fun changeName(newName:String) {
-        this.name = newName
+    @Id
+    val sku: UUID = sku
+
+    @Column("name")
+    val name:String = name
+
+    @Column("value")
+    val value:BigDecimal = value
+
+    fun changeWith(newProduct:Product) : Product{
+        return Product(sku, newProduct.name, newProduct.value)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -51,6 +48,8 @@ class Product(sku: String,
     }
 
     override fun toString(): String {
-        return "Product(sku='$sku', name='$name', averageValue=$averageValue)"
+        return "Product(sku='$sku', name='$name', value=$value)"
     }
+
+    private fun BigDecimal.lessThanOrEqualsTo(other: BigDecimal): Boolean = this <= other
 }

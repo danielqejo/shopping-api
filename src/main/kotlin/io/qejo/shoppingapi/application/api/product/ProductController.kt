@@ -1,15 +1,16 @@
 package io.qejo.shoppingapi.application.api.product
 
+import io.qejo.shoppingapi.application.api.product.database.ProductRepository
 import io.qejo.shoppingapi.application.api.product.dto.FoundProduct
 import io.qejo.shoppingapi.application.api.product.dto.ProductCreate
 import io.qejo.shoppingapi.application.api.product.exception.ProductNotFoundException
 import io.qejo.shoppingapi.domain.product.Product
-import io.qejo.shoppingapi.domain.product.ProductRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 @RestController
 @RequestMapping(path=["/products"], consumes = [MediaType.APPLICATION_JSON_VALUE])
@@ -18,13 +19,13 @@ class ProductController(val productRepository: ProductRepository) {
     @PostMapping(path = [""])
     fun create(@RequestBody productCreate: ProductCreate):ResponseEntity<Any> {
         val newProduct = Product(productCreate.name, productCreate.averageValue)
-        productRepository.save(newProduct)
+        productRepository.add(newProduct)
         return ResponseEntity.ok().build()
     }
 
     @GetMapping(path = ["{sku}"])
-    fun findBy(@PathVariable sku: String): ResponseEntity<Any> {
-        val product = productRepository.findByIdOrNull(sku) ?: throw ProductNotFoundException(sku)
+    fun findBy(@PathVariable sku: UUID): ResponseEntity<Any> {
+        val product = productRepository.findByIdOrNull(sku) ?: throw ProductNotFoundException(sku.toString())
 
         return ResponseEntity.ok(FoundProduct(product))
     }
